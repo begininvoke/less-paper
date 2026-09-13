@@ -1,4 +1,7 @@
+import ApiInterface
+import Components
 import ComposableArchitecture
+import DesignTokens
 import SwiftUI
 
 extension View {
@@ -28,7 +31,7 @@ private struct DocumentListTopLeadingToolbar: ViewModifier {
                     } else {
                         switch type {
                         case .inbox:
-                            EmptyView()
+                            fileTasksButton
                         case .documents:
                             defaultActionsMenu
                         }
@@ -45,6 +48,7 @@ private struct DocumentListTopLeadingToolbar: ViewModifier {
         self.store = store
         self.type = type
         self.viewAction = viewAction
+        _failedFileTaskCount = Shared(.failedFileTaskCount(store.server))
     }
 
     @ViewBuilder
@@ -53,6 +57,34 @@ private struct DocumentListTopLeadingToolbar: ViewModifier {
             send(.toggleSelectionModeButtonTapped)
         } label: {
             Label(.done, systemImage: "xmark")
+        }
+    }
+
+    @Shared
+    private var failedFileTaskCount: Int
+
+    // A button whose only possible outcome is a 403 is worse than no button, so it is hidden
+    // entirely rather than shown disabled.
+    @ViewBuilder
+    private var fileTasksButton: some View {
+        if store.permissions.can(.viewPaperlessTask) {
+            Button {
+                send(.fileTasksButtonTapped)
+            } label: {
+                Image(systemName: "tray.and.arrow.down")
+            }
+            // The system badge, the same one the inbox tab draws from inboxDocumentCount. From iOS
+            // 26 `.badge` is honoured on toolbar items too, not just list rows and tab bars, so the
+            // count no longer has to be hand-drawn: a capsule here rendered as bare text, because
+            // the toolbar's own button chrome overrides a background. Zero draws nothing, which is
+            // why there is no count check around it.
+            .badge(failedFileTaskCount)
+            .accessibilityLabel(.fileTasks)
+            .accessibilityValue(
+                failedFileTaskCount > 0
+                    ? String(localized: .failedFileTaskCount(failedFileTaskCount))
+                    : ""
+            )
         }
     }
 
