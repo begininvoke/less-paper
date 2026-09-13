@@ -151,13 +151,16 @@ struct AppReducerTests {
     }
 
     @Test
-    func test_didBecomeActive_withoutServer_doesNothing() async {
+    func test_didBecomeActive_withoutServer_skipsServerRefreshes() async {
         let store = TestStore(
             initialState: AppReducer.State(),
             reducer: { AppReducer() }
         )
 
+        // Recording the active day still runs an effect even without a server, so it must be
+        // waited out rather than left in flight.
         await store.send(.didBecomeActive)
+        await store.finish()
     }
 
     @Test

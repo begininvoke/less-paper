@@ -9,6 +9,19 @@ public struct DocumentListView: View {
     public var body: some View {
         AdaptiveNavigationView(path: $store.scope(state: \.path, action: \.path)) {
             List {
+                if store.isTipInvitationVisible {
+                    // Animated on both paths: the row is answered at most once in a user's
+                    // lifetime, and having it vanish between two frames reads as a glitch rather
+                    // than as the app acknowledging what they just did.
+                    TipInvitationBanner(
+                        tapped: { send(.tipInvitationTapped, animation: .default) },
+                        dismissed: { send(.tipInvitationDismissed, animation: .default) }
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .padding(.x3)
+                }
                 // Rows default to `systemBackground`, which is black in dark mode and so paints over
                 // the list's `m3SurfaceContainerLowest`. Invisible in light mode, where both are white.
                 ForEach(Array(store.scope(state: \.documents, action: \.documents))) { store in

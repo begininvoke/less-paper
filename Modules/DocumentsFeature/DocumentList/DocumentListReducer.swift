@@ -26,10 +26,13 @@ public struct DocumentListReducer: Sendable {
         case openDocument(Document.Id)
         case path(StackActionOf<Path>)
         case replaceDocuments(GetDocumentsOutput)
+        case tipInvitationEligible(Bool)
         case view(View)
 
         public enum Delegate: Equatable {
             case documentsDeleted(Set<Document.Id>)
+            case tipInvitationSettled
+            case tipInvitationTapped
         }
 
         public enum View {
@@ -52,6 +55,8 @@ public struct DocumentListReducer: Sendable {
             case savedViewButtonTapped(SavedView)
             case scanButtonTapped
             case serverButtonTapped(Server)
+            case tipInvitationDismissed
+            case tipInvitationTapped
             case toggleSelectionModeButtonTapped
         }
     }
@@ -81,6 +86,8 @@ public struct DocumentListReducer: Sendable {
         /// True while a detail column is on screen, which is what decides whether opening a
         /// document pushes over the list or replaces whatever the column is showing.
         var isSplitLayout = false
+
+        var isTipInvitationVisible = false
 
         @Presents
         var destination: Destination.State?
@@ -396,6 +403,9 @@ public struct DocumentListReducer: Sendable {
                     $0.isRecalculating = false
                 }
                 return .none
+            case let .tipInvitationEligible(isEligible):
+                state.isTipInvitationVisible = isEligible
+                return .none
             case let .view(viewAction):
                 switch viewAction {
                 case .allDocumentsButtonTapped:
@@ -482,14 +492,19 @@ public struct DocumentListReducer: Sendable {
                     let refreshFailedFileTaskCount: Effect<Action> = state.filter.isInbox
                         ? .runRefreshFailedFileTaskCount(server: state.server)
                         : .none
+                    // Checked on every appearance too, and for the same reason: the gate can turn
+                    // eligible between one visit and the next, and the usual visit finds the list
+                    // already populated and returns below.
+                    let onEveryAppearance = refreshFailedFileTaskCount
+                        .merge(with: .runCheckTipInvitation())
                     guard state.documents.isEmpty else {
-                        return refreshFailedFileTaskCount
+                        return onEveryAppearance
                     }
                     state.error = nil
                     state.rebuildInboxFilterIfNeeded()
                     guard !state.isInboxWithoutInboxTags else {
                         state.clearForEmptyInbox()
-                        return refreshFailedFileTaskCount
+                        return onEveryAppearance
                     }
                     return .merge(
                         .runGetDocuments(
@@ -498,7 +513,7 @@ public struct DocumentListReducer: Sendable {
                             sortDirection: state.filter.input.sort.direction,
                             sortField: state.filter.input.sort.field
                         ),
-                        refreshFailedFileTaskCount
+                        onEveryAppearance
                     )
                 case .onRefresh, .reloadButtonTapped:
                     // Inbox only, for the reason given under .onAppear above.
@@ -564,6 +579,21 @@ public struct DocumentListReducer: Sendable {
                         return .none
                     }
                     return .runSelectServer(server: server)
+                case .tipInvitationDismissed:
+                    state.isTipInvitationVisible = false
+                    // The sibling list (inbox vs documents) has its own copy of this flag, and
+                    // nothing else tells it the invitation was answered here - without this delegate
+                    // it would still render, and still be tappable, until its own onAppear catches up.
+                    return .runSettleTipInvitation()
+                        .concatenate(with: .send(.delegate(.tipInvitationSettled)))
+                case .tipInvitationTapped:
+                    state.isTipInvitationVisible = false
+                    // Concatenate, not merge: the delegate can make the parent switch tabs and
+                    // tear down this store, which would cancel a still-in-flight settle running
+                    // concurrently and let the invitation come back on the next visit.
+                    return .runSettleTipInvitation()
+                        .concatenate(with: .send(.delegate(.tipInvitationSettled)))
+                        .concatenate(with: .send(.delegate(.tipInvitationTapped)))
                 case .toggleSelectionModeButtonTapped:
                     return .send(.documentSelection(.toggleSelectionModeButtonTapped(state.filter)))
                 }

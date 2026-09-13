@@ -22,6 +22,18 @@ public struct SettingListView: View {
     public var body: some View {
         NavigationStack(path: $store.scope(state: \.path, action: \.path)) {
             List {
+                // Its own section at the top rather than buried alphabetically among Diagnostics
+                // and Licenses: the tip invitation sends people here once and never again, so the
+                // row it lands them beside has to be the one they remember.
+                Section {
+                    NavigationLink(
+                        state: SettingListReducer.Path.State.tipList(TipListReducer.State())
+                    ) {
+                        Label(.tips, systemImage: "cup.and.saucer")
+                    }
+                    .listRowBackground(Color.m3SurfaceContainer)
+                }
+
                 Section {
                     NavigationLink(
                         state: SettingListReducer.Path.State.serverList(ServerListReducer.State())
@@ -179,13 +191,6 @@ public struct SettingListView: View {
                         }
                     }
                     .listRowBackground(Color.m3SurfaceContainer)
-
-                    NavigationLink(
-                        state: SettingListReducer.Path.State.tipList(TipListReducer.State())
-                    ) {
-                        Label(.tips, systemImage: "cup.and.saucer")
-                    }
-                    .listRowBackground(Color.m3SurfaceContainer)
                 } footer: {
                     HStack {
                         Spacer()
@@ -195,6 +200,19 @@ public struct SettingListView: View {
                         Spacer()
                     }
                 }
+
+                // Compiled out entirely off the simulator, so it cannot reach a device build, a
+                // TestFlight build or the App Store - not hidden at runtime, absent.
+                #if DEBUG && targetEnvironment(simulator)
+                Section {
+                    NavigationLink(
+                        state: SettingListReducer.Path.State.debugSettings(DebugSettingsReducer.State())
+                    ) {
+                        Label("Debug", systemImage: "ladybug")
+                    }
+                    .listRowBackground(Color.m3SurfaceContainer)
+                }
+                #endif
             }
             .background(Color.m3SurfaceContainerLowest)
             .navigationBarTitleDisplayMode(.inline)
@@ -206,6 +224,10 @@ public struct SettingListView: View {
                 CorrespondentListView(store: store)
             case let .customFieldList(store):
                 CustomFieldListView(store: store)
+            #if DEBUG && targetEnvironment(simulator)
+            case let .debugSettings(store):
+                DebugSettingsView(store: store)
+            #endif
             case let .diagnosticsList(store):
                 DiagnosticsListView(store: store)
             case let .documentTypeList(store):

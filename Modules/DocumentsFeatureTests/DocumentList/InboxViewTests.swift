@@ -115,4 +115,70 @@ struct InboxViewTests {
             as: .image(layout: .device(config: .iPhone12))
         )
     }
+
+    // The invitation is the only thing in the app that mentions the tip jar outside Settings, and it
+    // has to read as one more card in the stack rather than a panel bolted above it.
+    @Test
+    func testSnapshot_withTipInvitation() async throws {
+        var state = DocumentListReducer.State.testValue()
+        state.isTipInvitationVisible = true
+
+        assertSnapshot(
+            of: InboxView(
+                store: Store(
+                    initialState: state,
+                    reducer: {
+                        DocumentListReducer()
+                    }
+                )
+            ),
+            as: .image(layout: .device(config: .iPhone12))
+        )
+    }
+
+    // The empty inbox is the steady state for exactly the long-tenure user this feature targets,
+    // and DocumentListEmptyView overlays a full-bleed ContentUnavailableView there - worth its own
+    // reference rather than assuming the four-document case stands in for it.
+    @Test
+    func testSnapshot_withTipInvitationEmptyInbox() async throws {
+        var state = DocumentListReducer.State.testValue(
+            documents: [],
+            filter: .testValue(isInbox: true),
+            isLoaded: true
+        )
+        state.isTipInvitationVisible = true
+
+        assertSnapshot(
+            of: InboxView(
+                store: Store(
+                    initialState: state,
+                    reducer: {
+                        DocumentListReducer()
+                    }
+                )
+            ),
+            as: .image(layout: .device(config: .iPhone12))
+        )
+    }
+
+    @Test
+    func testSnapshot_withTipInvitationDarkMode() async throws {
+        var state = DocumentListReducer.State.testValue()
+        state.isTipInvitationVisible = true
+
+        assertSnapshot(
+            of: InboxView(
+                store: Store(
+                    initialState: state,
+                    reducer: {
+                        DocumentListReducer()
+                    }
+                )
+            ),
+            as: .image(
+                layout: .device(config: .iPhone12),
+                traits: .init(userInterfaceStyle: .dark)
+            )
+        )
+    }
 }

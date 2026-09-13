@@ -42,21 +42,25 @@ Surfaced during: `docs/superpowers/specs/2026-08-12-cross-tab-document-sync-desi
 
 ---
 
-## `appStorage` does not use the app group
+## `appStorage` now uses the app group
 
-The file-backed shared keys write into `.applicationGroupDirectory`, so the app and the share
-extension see the same data. The `appStorage` ones do not — nothing sets `defaultAppStorage`, so
-each process reads its own `UserDefaults.standard`. `inboxDocumentCount` is the only key affected
-today.
+`defaultAppStorage` points at the app group suite in both targets as of
+`docs/superpowers/specs/2026-09-13-tip-invitation-design.md`, closing the gap this entry used to
+record under "`appStorage` does not use the app group" — accurately, at the time: nothing in the
+share extension read a value back across the boundary yet, so it was latent rather than broken.
 
-Currently latent rather than broken: nothing in the share extension writes that count. It becomes a
-real bug the moment the extension refreshes statistics — which is exactly what the import-refresh
-idea above would do.
+Existing values were not migrated, with one exception: `review-requested-at` is read across from
+`UserDefaults.standard` once, since a lost cooldown timestamp would make `ReviewPrompt` ask sooner
+than it should, and that is the one direction of error this whole feature exists to avoid.
+`review-import-count`, `inboxDocumentCount` and `failedFileTaskCount` are left to re-read as their
+defaults — each only delays a count catching up, which errs the safe way instead.
 
-Fixing it means pointing `defaultAppStorage` at the group suite in both targets, and deciding
-whether to migrate the existing values or let them re-read as 0 on the next refresh.
+Open: whether any other pre-existing `appStorage` key needs the same one-time read-across, or
+whether re-reading as a default is always the safe direction for it. Nobody has gone through the
+full key list against that question; `review-requested-at` was only caught because this feature
+happened to add the first thing that reads a pre-existing key back across the process boundary.
 
-Surfaced during: `docs/superpowers/specs/2026-08-14-delete-document-design.md` and the #131 inbox count work.
+Surfaced during: `docs/superpowers/specs/2026-09-13-tip-invitation-design.md`.
 
 ---
 
@@ -83,8 +87,8 @@ Surfaced during: the CI runtime investigation, 2026-08-15; re-checked 2026-08-30
 `DocumentBulkEditTitleReducer.State.template` opens on `{title}` every time — a no-op the user
 extends, rather than the blank it originally started as. What it still does not do is remember the
 template you used last time, so `{created_year}-{correspondent}` gets retyped for every batch. An
-`@Shared(.appStorage)` key per server would cover it, but note the caveat already recorded under
-"`appStorage` does not use the app group".
+`@Shared(.appStorage)` key per server would cover it — the `appStorage` keys now live in the app
+group suite, so a per-server key is simply fine.
 
 Surfaced during: `docs/superpowers/specs/2026-08-16-bulk-edit-title-design.md`.
 
